@@ -31,56 +31,49 @@ document.addEventListener('DOMContentLoaded', () => {
     // References for Microsoft, X, and Apple buttons removed.
 
     // let questions = []; // Local questions array removed, Firestore is the source of truth.
-    let userVotes = {}; // Object to track user votes { questionId: true/false } - for client-side UI state
+    // let userVotes = {}; // REMOVED - Replaced by votedBy array in Firestore documents.
     let questionsListener = null; // To hold the Firestore listener unsubscribe function
 
     let currentUser = null; // To store the current authenticated user object
 
     // --- Auth State Observer ---
     auth.onAuthStateChanged(user => {
-        currentUser = user;
+        currentUser = user; // This should be at the top of the function
+
+        if (questionsListener) { // Detach any existing listener first
+            questionsListener();
+            questionsListener = null;
+        }
+
         if (user) {
             // User is signed in
             userDetailsP.textContent = `Logged in as: ${user.displayName || user.email}`;
             userInfoDiv.style.display = 'block';
             googleSignInButton.style.display = 'none';
-            githubSignInButton.style.display = 'none'; 
-            facebookSignInButton.style.display = 'none'; 
-            // Display logic for Microsoft, X, and Apple buttons removed.
+            githubSignInButton.style.display = 'none';
+            facebookSignInButton.style.display = 'none';
             signOutButton.style.display = 'block';
 
             questionInput.disabled = false;
             addQuestionButton.disabled = false;
-            questionsList.style.display = ''; // Or 'block', 'flex' etc. depending on CSS
-            // renderQuestions(); // Replaced by Firestore listener
-            if (questionsListener) { // Detach any old listener
-                questionsListener();
-            }
-            loadQuestionsFromFirestore(); // Setup new listener
+            
+            loadQuestionsFromFirestore(); // Load questions for logged-in user
         } else {
             // User is signed out
-            if (questionsListener) { // Detach listener if user signs out
-                questionsListener();
-                questionsListener = null;
-            }
             userDetailsP.textContent = '';
             userInfoDiv.style.display = 'none';
             googleSignInButton.style.display = 'block';
-            githubSignInButton.style.display = 'block'; 
-            facebookSignInButton.style.display = 'block'; 
-            // Display logic for Microsoft, X, and Apple buttons removed.
+            githubSignInButton.style.display = 'block';
+            facebookSignInButton.style.display = 'block';
             signOutButton.style.display = 'none';
 
             questionInput.disabled = true;
             addQuestionButton.disabled = true;
-            questionsList.innerHTML = ''; // Clear questions from display
-            questionsList.style.display = 'none'; // Hide the list container
-            // It's also good practice to clear the actual 'questions' array 
-            // if questions should not persist in memory after logout.
-            // For now, just hiding and clearing display is requested.
-            // questions = []; // Uncomment if questions should be wiped from memory on logout
+            // questionsList.innerHTML = ''; // Clearing here might cause flicker if load is fast
+            // questionsList.style.display = ''; // Ensure list is visible for logged-out users too
+                                          
+            loadQuestionsFromFirestore(); // Also load questions for logged-out user
         }
-        // renderQuestions() was here, moved into the if(user) block
     });
 
     // --- Sign-In with Google ---
@@ -161,19 +154,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Load Questions from Firestore ---
     function loadQuestionsFromFirestore() {
-        if (!currentUser) { // Should already be handled by where this is called from
-            questionsList.innerHTML = '';
-            questionsList.style.display = 'none';
-            return;
-        }
-        questionsList.style.display = ''; // Or 'block', 'flex'
+        questionsList.style.display = ''; // Or 'block', 'flex' - Make sure list is visible
 
         // Detach any existing listener by calling the variable that holds the unsubscribe function
-        if (questionsListener) {
-            questionsListener();
-        }
+        // This is now handled in onAuthStateChanged before calling this function.
+        // if (questionsListener) {
+        //     questionsListener();
+        // }
+        // The check for currentUser is also implicitly handled by onAuthStateChanged
+        // which now calls this function in both logged-in and logged-out states.
+        // UI differences for logged-out (e.g., vote buttons) are handled in renderQuestions.
 
-        questionsListener = db.collection("questions").orderBy("createdAt", "desc") // Assuming you add 'createdAt' field
+        questionsListener = db.collection("questions").orderBy("createdAt", "desc")
             .onSnapshot((snapshot) => {
                 const questionsData = [];
                 snapshot.forEach((doc) => {
@@ -206,28 +198,35 @@ document.addEventListener('DOMContentLoaded', () => {
             const questionActions = document.createElement('div');
             questionActions.classList.add('question-actions');
 
-            const voteButton = document.createElement('button');
-            voteButton.classList.add('vote-button');
-            voteButton.textContent = `Upvote (${question.votes})`;
-            if (userVotes[question.id]) {
-                voteButton.classList.add('voted');
-            }
-            voteButton.addEventListener('click', () => handleUpvote(question.id)); // Votes no longer passed
+            if (currentUser) {
+                const voteButton = document.createElement('button');
+                voteButton.classList.add('vote-button');
+                voteButton.textContent = `Upvote (${question.votes || 0})`;
 
-            const removeButton = document.createElement('button');
-            removeButton.classList.add('remove-button');
-            removeButton.textContent = 'Remove';
-            
-            // Only show remove button if the user is logged in and owns the question
-            if (currentUser && currentUser.uid === question.userId) {
-                removeButton.style.display = 'inline-block';
-                removeButton.addEventListener('click', () => handleRemove(question.id));
+                if (question.votedBy && question.votedBy.includes(currentUser.uid)) {
+                    voteButton.classList.add('voted');
+                } else {
+                    voteButton.classList.remove('voted');
+                }
+                voteButton.addEventListener('click', () => handleUpvote(question.id));
+                questionActions.appendChild(voteButton);
             } else {
-                removeButton.style.display = 'none';
+                const signInToVoteMsg = document.createElement('span');
+                signInToVoteMsg.classList.add('signin-to-vote-message');
+                signInToVoteMsg.textContent = 'Sign in to upvote!';
+                questionActions.appendChild(signInToVoteMsg);
             }
-
-            questionActions.appendChild(voteButton);
-            questionActions.appendChild(removeButton);
+            
+            // Logic for the remove button (should remain inside `if (currentUser && ...)` check)
+            if (currentUser && currentUser.uid === question.userId) {
+                const removeButton = document.createElement('button');
+                removeButton.classList.add('remove-button');
+                removeButton.textContent = 'Remove';
+                removeButton.style.display = 'inline-block'; // Ensure it's visible
+                removeButton.addEventListener('click', () => handleRemove(question.id));
+                questionActions.appendChild(removeButton);
+            }
+            // If not current user or not owner, remove button is simply not added.
 
             questionItem.appendChild(questionText);
             questionItem.appendChild(questionActions);
@@ -252,9 +251,10 @@ document.addEventListener('DOMContentLoaded', () => {
             db.collection("questions").add({
                 text: text,
                 userId: currentUser.uid,
-                userName: currentUser.displayName || currentUser.email,
+                // userName: currentUser.displayName || currentUser.email, // REMOVED
                 votes: 0,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp() // Add server timestamp
+                votedBy: [], // ADDED
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
             }).then(() => {
                 questionInput.value = ''; // Clear input
                 // No need to call renderQuestions() here, onSnapshot will handle it
@@ -270,40 +270,50 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Handle Upvote ---
-    function handleUpvote(questionId) { // Modified to accept currentVotes if needed, or fetch
-        const questionRef = db.collection("questions").doc(questionId);
-        let newVoteCount;
-
-        if (userVotes[questionId]) { // Already voted, so remove vote
-            newVoteCount = firebase.firestore.FieldValue.increment(-1);
-            userVotes[questionId] = false;
-        } else { // Not voted, so add vote
-            newVoteCount = firebase.firestore.FieldValue.increment(1);
-            userVotes[questionId] = true;
+    function handleUpvote(questionId) {
+        if (!currentUser) {
+            alert("Please sign in to vote.");
+            return;
         }
+        const questionRef = db.collection("questions").doc(questionId);
 
-        questionRef.update({ votes: newVoteCount })
-            .then(() => {
-                // renderQuestions() will be called by onSnapshot,
-                // but userVotes change needs to be reflected immediately if render is not fast enough
-                // This might require a local re-render of just the button or relying on onSnapshot.
-                // For now, let onSnapshot handle the re-render of the vote count.
-                // To update the button class immediately:
-                const voteButton = document.querySelector(`.question-item[data-id="${questionId}"] .vote-button`);
-                if (voteButton) {
-                    if (userVotes[questionId]) {
-                        voteButton.classList.add('voted');
-                    } else {
-                        voteButton.classList.remove('voted');
-                    }
-                    // The vote count text itself will be updated by onSnapshot's call to renderQuestions.
+        db.runTransaction((transaction) => {
+            return transaction.get(questionRef).then((questionDoc) => {
+                if (!questionDoc.exists) {
+                    throw "Document does not exist!";
                 }
-            })
-            .catch((error) => {
-                console.error("Error updating vote: ", error);
-                // Revert local userVotes state if Firestore update fails
-                userVotes[questionId] = !userVotes[questionId]; 
+
+                const questionData = questionDoc.data();
+                const currentVotes = questionData.votes || 0;
+                const votedByArray = questionData.votedBy || [];
+                let newVotes;
+                let newVotedByArray;
+
+                if (votedByArray.includes(currentUser.uid)) {
+                    // User has already voted, so unvote
+                    newVotes = currentVotes - 1;
+                    newVotedByArray = votedByArray.filter(uid => uid !== currentUser.uid);
+                } else {
+                    // User has not voted, so vote
+                    newVotes = currentVotes + 1;
+                    newVotedByArray = [...votedByArray, currentUser.uid];
+                }
+                
+                // Ensure votes don't go below zero, though rules should also prevent this
+                if (newVotes < 0) newVotes = 0;
+
+                transaction.update(questionRef, { 
+                    votes: newVotes, 
+                    votedBy: newVotedByArray 
+                });
             });
+        }).then(() => {
+            // console.log("Vote transaction successfully committed!");
+            // UI will update via the onSnapshot listener. No need to call renderQuestions() here.
+        }).catch((error) => {
+            console.error("Vote transaction failed: ", error);
+            alert("There was an error processing your vote. Please try again.");
+        });
     }
 
     // --- Handle Remove ---
@@ -317,7 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         .then(() => {
                             // console.log("Question removed");
                             // No need to call renderQuestions(), onSnapshot will handle it
-                            delete userVotes[questionId]; // Clean up local vote tracking
+                            // delete userVotes[questionId]; // REMOVED - No longer using local userVotes
                         })
                         .catch((error) => {
                             console.error("Error removing question: ", error);
