@@ -1,10 +1,91 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // --- Firebase Configuration ---
+    // IMPORTANT: Replace with your app's Firebase project configuration object!
+    const firebaseConfig = {
+        apiKey: "YOUR_API_KEY",
+        authDomain: "YOUR_AUTH_DOMAIN",
+        projectId: "YOUR_PROJECT_ID",
+        storageBucket: "YOUR_STORAGE_BUCKET",
+        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+        appId: "YOUR_APP_ID"
+    };
+
+    // --- Initialize Firebase ---
+    // Using compat libraries for easier integration with existing structure
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth(); // Get the auth instance
+
+    // --- DOM References ---
     const questionForm = document.getElementById('add-question-form');
     const questionInput = document.getElementById('question-input');
+    const addQuestionButton = document.getElementById('add-question-button');
     const questionsList = document.getElementById('questions-list');
 
-    let questions = []; // Array to store question objects { id: 'uuid', text: '...', votes: 0 }
-    let userVotes = {}; // Object to track user votes { questionId: true/false } (simple toggle)
+    const googleSignInButton = document.getElementById('google-signin-button');
+    const signOutButton = document.getElementById('signout-button');
+    const userInfoDiv = document.getElementById('user-info');
+    const userDetailsP = document.getElementById('user-details');
+
+    let questions = []; // Array to store question objects { id: 'uuid', text: '...', votes: 0, userId?: '...', userName?: '...' }
+    let userVotes = {}; // Object to track user votes { questionId: true/false }
+
+    let currentUser = null; // To store the current authenticated user object
+
+    // --- Auth State Observer ---
+    auth.onAuthStateChanged(user => {
+        currentUser = user;
+        if (user) {
+            // User is signed in
+            userDetailsP.textContent = `Logged in as: ${user.displayName || user.email}`;
+            userInfoDiv.style.display = 'block';
+            googleSignInButton.style.display = 'none';
+            signOutButton.style.display = 'block';
+
+            questionInput.disabled = false;
+            addQuestionButton.disabled = false;
+        } else {
+            // User is signed out
+            userDetailsP.textContent = '';
+            userInfoDiv.style.display = 'none';
+            googleSignInButton.style.display = 'block';
+            signOutButton.style.display = 'none';
+
+            questionInput.disabled = true;
+            addQuestionButton.disabled = true;
+        }
+        renderQuestions(); // Re-render questions to update UI based on auth state (e.g., remove buttons)
+    });
+
+    // --- Sign-In with Google ---
+    googleSignInButton.addEventListener('click', () => {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        auth.signInWithPopup(provider)
+            .then((result) => {
+                // This gives you a Google Access Token. You can use it to access the Google API.
+                // const credential = result.credential;
+                // const token = credential.accessToken;
+                // const user = result.user;
+                // console.log('Signed in user:', user);
+            })
+            .catch((error) => {
+                // Handle Errors here.
+                console.error("Google Sign-In Error:", error.code, error.message);
+                // const errorCode = error.code;
+                // const errorMessage = error.message;
+                // const email = error.customData.email;
+                // const credential = firebase.auth.GoogleAuthProvider.credentialFromError(error);
+            });
+    });
+
+    // --- Sign-Out ---
+    signOutButton.addEventListener('click', () => {
+        auth.signOut().then(() => {
+            // Sign-out successful.
+            // console.log('User signed out');
+        }).catch((error) => {
+            console.error("Sign-Out Error:", error);
+        });
+    });
 
     // --- Render Questions ---
     function renderQuestions() {
@@ -18,6 +99,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const questionText = document.createElement('p');
             questionText.classList.add('question-text');
             questionText.textContent = question.text;
+            if (question.userName) {
+                const authorSpan = document.createElement('span');
+                authorSpan.style.fontSize = '0.8em';
+                authorSpan.style.color = '#555';
+                authorSpan.textContent = ` (by ${question.userName})`;
+                questionText.appendChild(authorSpan);
+            }
+
 
             const questionActions = document.createElement('div');
             questionActions.classList.add('question-actions');
@@ -26,17 +115,23 @@ document.addEventListener('DOMContentLoaded', () => {
             voteButton.classList.add('vote-button');
             voteButton.textContent = `Upvote (${question.votes})`;
             if (userVotes[question.id]) {
-                voteButton.classList.add('voted'); // Add 'voted' class if user has voted
+                voteButton.classList.add('voted');
             }
             voteButton.addEventListener('click', () => handleUpvote(question.id));
 
             const removeButton = document.createElement('button');
             removeButton.classList.add('remove-button');
             removeButton.textContent = 'Remove';
-            removeButton.addEventListener('click', () => handleRemove(question.id));
+            
+            // Only show remove button if the user is logged in and owns the question
+            if (currentUser && currentUser.uid === question.userId) {
+                removeButton.style.display = 'inline-block';
+                removeButton.addEventListener('click', () => handleRemove(question.id));
+            } else {
+                removeButton.style.display = 'none';
+            }
 
             questionActions.appendChild(voteButton);
-            // questionActions.appendChild(voteCountSpan); // Vote count is in button text for now
             questionActions.appendChild(removeButton);
 
             questionItem.appendChild(questionText);
@@ -49,15 +144,19 @@ document.addEventListener('DOMContentLoaded', () => {
     questionForm.addEventListener('submit', (event) => {
         event.preventDefault();
         const text = questionInput.value.trim();
-        if (text) {
+        if (text && currentUser) { // Only allow adding if logged in
             const newQuestion = {
                 id: crypto.randomUUID(),
                 text: text,
-                votes: 0
+                votes: 0,
+                userId: currentUser.uid,
+                userName: currentUser.displayName || currentUser.email // Store display name or email
             };
             questions.push(newQuestion);
-            questionInput.value = ''; // Clear input
+            questionInput.value = '';
             renderQuestions();
+        } else if (!currentUser) {
+            alert("Please sign in to add a question.");
         }
     });
 
@@ -65,10 +164,12 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleUpvote(questionId) {
         const question = questions.find(q => q.id === questionId);
         if (question) {
-            if (userVotes[questionId]) { // Already voted, so remove vote
+            // For now, allow anyone to vote, even if not logged in or not their question
+            // This could be restricted further if needed (e.g., only logged-in users can vote)
+            if (userVotes[questionId]) {
                 question.votes--;
                 userVotes[questionId] = false;
-            } else { // Not voted, so add vote
+            } else {
                 question.votes++;
                 userVotes[questionId] = true;
             }
@@ -78,11 +179,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Handle Remove ---
     function handleRemove(questionId) {
-        questions = questions.filter(q => q.id !== questionId);
-        delete userVotes[questionId]; // Remove vote tracking for this question
-        renderQuestions();
+        const questionToRemove = questions.find(q => q.id === questionId);
+        // Double check ownership before removing, though button visibility should also handle this
+        if (currentUser && questionToRemove && questionToRemove.userId === currentUser.uid) {
+            questions = questions.filter(q => q.id !== questionId);
+            delete userVotes[questionId];
+            renderQuestions();
+        } else {
+            alert("You can only remove your own questions.");
+        }
     }
 
     // --- Initial Render ---
-    renderQuestions();
+    // renderQuestions(); // Called by onAuthStateChanged initially
+    // Note: Questions are client-side only and will be lost on page refresh.
+    // For persistent storage, a database like Firebase Firestore or Realtime Database would be needed.
 });
