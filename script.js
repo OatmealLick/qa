@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Using compat libraries for easier integration with existing structure
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth(); // Get the auth instance
+    const db = firebase.firestore(); // Get the Firestore instance
 
     // --- DOM References ---
     const questionForm = document.getElementById('add-question-form');
@@ -29,8 +30,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const facebookSignInButton = document.getElementById('facebook-signin-button'); 
     // References for Microsoft, X, and Apple buttons removed.
 
-    let questions = []; // Array to store question objects { id: 'uuid', text: '...', votes: 0, userId?: '...', userName?: '...' }
-    let userVotes = {}; // Object to track user votes { questionId: true/false }
+    // let questions = []; // Local questions array removed, Firestore is the source of truth.
+    let userVotes = {}; // Object to track user votes { questionId: true/false } - for client-side UI state
+    let questionsListener = null; // To hold the Firestore listener unsubscribe function
 
     let currentUser = null; // To store the current authenticated user object
 
@@ -50,9 +52,17 @@ document.addEventListener('DOMContentLoaded', () => {
             questionInput.disabled = false;
             addQuestionButton.disabled = false;
             questionsList.style.display = ''; // Or 'block', 'flex' etc. depending on CSS
-            renderQuestions(); // Render questions now that user is logged in
+            // renderQuestions(); // Replaced by Firestore listener
+            if (questionsListener) { // Detach any old listener
+                questionsListener();
+            }
+            loadQuestionsFromFirestore(); // Setup new listener
         } else {
             // User is signed out
+            if (questionsListener) { // Detach listener if user signs out
+                questionsListener();
+                questionsListener = null;
+            }
             userDetailsP.textContent = '';
             userInfoDiv.style.display = 'none';
             googleSignInButton.style.display = 'block';
@@ -149,18 +159,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Event listener for Apple sign-in button removed.
 
+    // --- Load Questions from Firestore ---
+    function loadQuestionsFromFirestore() {
+        if (!currentUser) { // Should already be handled by where this is called from
+            questionsList.innerHTML = '';
+            questionsList.style.display = 'none';
+            return;
+        }
+        questionsList.style.display = ''; // Or 'block', 'flex'
+
+        // Detach any existing listener by calling the variable that holds the unsubscribe function
+        if (questionsListener) {
+            questionsListener();
+        }
+
+        questionsListener = db.collection("questions").orderBy("createdAt", "desc") // Assuming you add 'createdAt' field
+            .onSnapshot((snapshot) => {
+                const questionsData = [];
+                snapshot.forEach((doc) => {
+                    questionsData.push({ id: doc.id, ...doc.data() });
+                });
+                renderQuestions(questionsData); // Pass data to renderQuestions
+            }, (error) => {
+                console.error("Error fetching questions: ", error);
+                // Handle error, maybe show a message to the user
+                questionsList.innerHTML = '<p>Error loading questions. Please try again later.</p>';
+            });
+    }
+
     // --- Render Questions ---
-    function renderQuestions() {
+    function renderQuestions(questionsData) { // Modified to accept questionsData
         questionsList.innerHTML = ''; // Clear existing questions
 
-        questions.forEach(question => {
+        questionsData.forEach(question => { // Operates on questionsData
             const questionItem = document.createElement('div');
             questionItem.classList.add('question-item');
             questionItem.dataset.id = question.id;
 
             const questionText = document.createElement('p');
             questionText.classList.add('question-text');
-            questionText.textContent = question.text;
+            // Make sure question.text exists, especially if there are DB schema inconsistencies
+            questionText.textContent = question.text || "[No question text]"; 
             // Author name display removed as per requirement
 
 
@@ -173,7 +212,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (userVotes[question.id]) {
                 voteButton.classList.add('voted');
             }
-            voteButton.addEventListener('click', () => handleUpvote(question.id));
+            voteButton.addEventListener('click', () => handleUpvote(question.id)); // Votes no longer passed
 
             const removeButton = document.createElement('button');
             removeButton.classList.add('remove-button');
@@ -201,53 +240,105 @@ document.addEventListener('DOMContentLoaded', () => {
         event.preventDefault();
         const text = questionInput.value.trim();
         if (text && currentUser) { // Only allow adding if logged in
-            const newQuestion = {
-                id: crypto.randomUUID(),
+            // const newQuestion = { // Old local object creation
+            //     id: crypto.randomUUID(),
+            //     text: text,
+            //     votes: 0,
+            //     userId: currentUser.uid,
+            //     userName: currentUser.displayName || currentUser.email
+            // };
+            // questions.push(newQuestion); // REMOVE THIS
+
+            db.collection("questions").add({
                 text: text,
-                votes: 0,
                 userId: currentUser.uid,
-                userName: currentUser.displayName || currentUser.email // Store display name or email
-            };
-            questions.push(newQuestion);
-            questionInput.value = '';
-            renderQuestions();
+                userName: currentUser.displayName || currentUser.email,
+                votes: 0,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp() // Add server timestamp
+            }).then(() => {
+                questionInput.value = ''; // Clear input
+                // No need to call renderQuestions() here, onSnapshot will handle it
+            }).catch((error) => {
+                console.error("Error adding question: ", error);
+                alert("Error adding question. Please try again.");
+            });
+            // questionInput.value = ''; // Old position, moved into .then()
+            // renderQuestions(); // Old call, removed
         } else if (!currentUser) {
             alert("Please sign in to add a question.");
         }
     });
 
     // --- Handle Upvote ---
-    function handleUpvote(questionId) {
-        const question = questions.find(q => q.id === questionId);
-        if (question) {
-            // For now, allow anyone to vote, even if not logged in or not their question
-            // This could be restricted further if needed (e.g., only logged-in users can vote)
-            if (userVotes[questionId]) {
-                question.votes--;
-                userVotes[questionId] = false;
-            } else {
-                question.votes++;
-                userVotes[questionId] = true;
-            }
-            renderQuestions();
+    function handleUpvote(questionId) { // Modified to accept currentVotes if needed, or fetch
+        const questionRef = db.collection("questions").doc(questionId);
+        let newVoteCount;
+
+        if (userVotes[questionId]) { // Already voted, so remove vote
+            newVoteCount = firebase.firestore.FieldValue.increment(-1);
+            userVotes[questionId] = false;
+        } else { // Not voted, so add vote
+            newVoteCount = firebase.firestore.FieldValue.increment(1);
+            userVotes[questionId] = true;
         }
+
+        questionRef.update({ votes: newVoteCount })
+            .then(() => {
+                // renderQuestions() will be called by onSnapshot,
+                // but userVotes change needs to be reflected immediately if render is not fast enough
+                // This might require a local re-render of just the button or relying on onSnapshot.
+                // For now, let onSnapshot handle the re-render of the vote count.
+                // To update the button class immediately:
+                const voteButton = document.querySelector(`.question-item[data-id="${questionId}"] .vote-button`);
+                if (voteButton) {
+                    if (userVotes[questionId]) {
+                        voteButton.classList.add('voted');
+                    } else {
+                        voteButton.classList.remove('voted');
+                    }
+                    // The vote count text itself will be updated by onSnapshot's call to renderQuestions.
+                }
+            })
+            .catch((error) => {
+                console.error("Error updating vote: ", error);
+                // Revert local userVotes state if Firestore update fails
+                userVotes[questionId] = !userVotes[questionId]; 
+            });
     }
 
     // --- Handle Remove ---
     function handleRemove(questionId) {
-        const questionToRemove = questions.find(q => q.id === questionId);
-        // Double check ownership before removing, though button visibility should also handle this
-        if (currentUser && questionToRemove && questionToRemove.userId === currentUser.uid) {
-            questions = questions.filter(q => q.id !== questionId);
-            delete userVotes[questionId];
-            renderQuestions();
-        } else {
-            alert("You can only remove your own questions.");
-        }
+        const questionRef = db.collection("questions").doc(questionId);
+        // Optional: Add a confirmation dialog before deleting
+        // if (confirm("Are you sure you want to remove this question?")) {
+            questionRef.get().then((doc) => {
+                if (doc.exists && currentUser && doc.data().userId === currentUser.uid) {
+                    questionRef.delete()
+                        .then(() => {
+                            // console.log("Question removed");
+                            // No need to call renderQuestions(), onSnapshot will handle it
+                            delete userVotes[questionId]; // Clean up local vote tracking
+                        })
+                        .catch((error) => {
+                            console.error("Error removing question: ", error);
+                            alert("Error removing question.");
+                        });
+                } else if (doc.exists && currentUser && doc.data().userId !== currentUser.uid) {
+                    // This case should ideally be prevented by security rules & UI
+                    alert("You can only remove your own questions.");
+                } else if (!doc.exists) {
+                    alert("This question no longer exists.");
+                } else { // Not signed in
+                    alert("You must be signed in to remove questions.");
+                }
+            }).catch(error => {
+                console.error("Error fetching question for deletion: ", error);
+                alert("Could not verify question ownership for deletion.");
+            });
+        // }
     }
 
     // --- Initial Render ---
-    // renderQuestions(); // Called by onAuthStateChanged initially
-    // Note: Questions are client-side only and will be lost on page refresh.
-    // For persistent storage, a database like Firebase Firestore or Realtime Database would be needed.
+    // renderQuestions(); // Called by onAuthStateChanged (via loadQuestionsFromFirestore) initially.
+    // Note: Questions are now persisted in Firestore.
 });
