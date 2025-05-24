@@ -99,3 +99,91 @@ h1 {
     margin-left: 8px;
     font-weight: bold;
 }
+
+/* --- Authentication Styles --- */
+#auth-container {
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: #f9f9f9;
+    border-radius: 4px;
+    border: 1px solid #eee;
+    display: flex;
+    flex-direction: column; /* Stack buttons vertically initially */
+    align-items: center;
+}
+
+#auth-container button {
+    padding: 10px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    margin: 5px 0; /* Add some margin between stacked buttons */
+    width: 250px; /* Give them a consistent width */
+    max-width: 100%;
+    text-align: center;
+    transition: background-color 0.3s ease;
+}
+
+/* Specific styling for Google button */
+#google-signin-button {
+    background-color: #DB4437; /* Google Red */
+    color: white;
+}
+#google-signin-button:hover {
+    background-color: #c33d2e;
+}
+
+/* Specific styling for GitHub button */
+#github-signin-button {
+    background-color: #333; /* GitHub Black */
+    color: white;
+}
+#github-signin-button:hover {
+    background-color: #555;
+}
+
+/* Specific styling for Facebook button */
+#facebook-signin-button {
+    background-color: #1877F2; /* Facebook Blue */
+    color: white;
+}
+#facebook-signin-button:hover {
+    background-color: #166fe5;
+}
+
+#signout-button {
+    background-color: #6c757d; /* Gray */
+    color: white;
+    width: auto; /* Allow signout button to be smaller */
+    padding: 8px 12px;
+    margin-top: 10px;
+}
+#signout-button:hover {
+    background-color: #5a6268;
+}
+
+#user-info {
+    margin-top: 10px;
+    font-size: 0.9em;
+    color: #333;
+}
+
+#user-details {
+    margin: 0;
+    padding: 5px;
+    background-color: #e9ecef;
+    border-radius: 3px;
+    text-align: center;
+}
+
+/* If you want buttons side-by-side on wider screens */
+/* @media (min-width: 600px) {
+    #auth-container {
+        flex-direction: row;
+        justify-content: space-around;
+    }
+    #auth-container button {
+        margin: 0 5px;
+    }
+} */
