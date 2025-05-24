@@ -36,6 +36,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let currentUser = null; // To store the current authenticated user object
 
+    // Client-side list of admin UIDs (for UI purposes only, rules enforce actual deletion)
+    // IMPORTANT: Replace with the same UIDs used in your Firestore Security Rules
+    const adminUIDs = ["ADMIN_UID_1_PLACEHOLDER", "ADMIN_UID_2_PLACEHOLDER"]; 
+
     // --- Auth State Observer ---
     auth.onAuthStateChanged(user => {
         currentUser = user; // This should be at the top of the function
@@ -217,16 +221,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 questionActions.appendChild(signInToVoteMsg);
             }
             
-            // Logic for the remove button (should remain inside `if (currentUser && ...)` check)
-            if (currentUser && currentUser.uid === question.userId) {
-                const removeButton = document.createElement('button');
-                removeButton.classList.add('remove-button');
-                removeButton.textContent = 'Remove';
-                removeButton.style.display = 'inline-block'; // Ensure it's visible
-                removeButton.addEventListener('click', () => handleRemove(question.id));
-                questionActions.appendChild(removeButton);
+            // Logic for the remove button
+            if (currentUser) { // User must be logged in to see any remove button
+                const isOwner = currentUser.uid === question.userId;
+                const isAdminUser = adminUIDs.includes(currentUser.uid);
+
+                if (isOwner || isAdminUser) {
+                    const removeButton = document.createElement('button');
+                    removeButton.classList.add('remove-button');
+                    removeButton.textContent = 'Remove';
+                    // removeButton.style.display = 'inline-block'; // No longer needed, only appended if shown
+                    removeButton.addEventListener('click', () => handleRemove(question.id));
+                    questionActions.appendChild(removeButton);
+                }
             }
-            // If not current user or not owner, remove button is simply not added.
+            // If not current user or not owner/admin, remove button is simply not added.
 
             questionItem.appendChild(questionText);
             questionItem.appendChild(questionActions);
@@ -312,7 +321,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // UI will update via the onSnapshot listener. No need to call renderQuestions() here.
         }).catch((error) => {
             console.error("Vote transaction failed: ", error);
-            alert("There was an error processing your vote. Please try again.");
+        // The alert was: "There was an error processing your vote. Please try again."
+        // Keep it or make it more specific if possible, though Firestore errors can be generic.
+        alert("There was an error processing your vote. Please try again. This could be due to a temporary network issue or a problem with the data sync.");
         });
     }
 
