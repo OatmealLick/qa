@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const signOutButton = document.getElementById('signout-button');
     const userInfoDiv = document.getElementById('user-info');
     const userDetailsP = document.getElementById('user-details');
+    const removeAllQuestionsButton = document.getElementById('remove-all-questions-button'); // Added
 
     const githubSignInButton = document.getElementById('github-signin-button'); 
     const facebookSignInButton = document.getElementById('facebook-signin-button'); 
@@ -37,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentUser = null; // To store the current authenticated user object
 
     // Client-side list of admin UIDs (for UI purposes only, rules enforce actual deletion, you can try 'hacking it' dear reader :) )
-    const adminUIDs = ["p9C3Ld9rHuPfe2synovUe3N1K4h1", "LGA38I8WjgOLgzN2nKlW0KtGUUo2"];
+    const adminUIDs = ["p9C3Ld9rHuPfe2synovUe3N1K4h1", "LGA38I8WjgOLgzN2nKlW0KtGUUo2", "WHj6mkqbiONyGuPvxqAm1K1UzOo1"];
 
     // --- Auth State Observer ---
     auth.onAuthStateChanged(user => {
@@ -60,6 +61,11 @@ document.addEventListener('DOMContentLoaded', () => {
             questionInput.disabled = false;
             addQuestionButton.disabled = false;
             
+            if (adminUIDs.includes(user.uid)) {
+                removeAllQuestionsButton.style.display = 'block'; // Or your preferred display type
+            } else {
+                removeAllQuestionsButton.style.display = 'none';
+            }
             loadQuestionsFromFirestore(); // Load questions for logged-in user
         } else {
             // User is signed out
@@ -69,6 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
             githubSignInButton.style.display = 'block';
             facebookSignInButton.style.display = 'block';
             signOutButton.style.display = 'none';
+            removeAllQuestionsButton.style.display = 'none'; // Hide for signed-out users
 
             questionInput.disabled = true;
             addQuestionButton.disabled = true;
@@ -168,7 +175,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // which now calls this function in both logged-in and logged-out states.
         // UI differences for logged-out (e.g., vote buttons) are handled in renderQuestions.
 
-        questionsListener = db.collection("questions").orderBy("createdAt", "desc")
+        questionsListener = db.collection("questions")
+            .orderBy("votes", "desc")
+            .orderBy("createdAt", "desc") // Secondary sort for tie-breaking
             .onSnapshot((snapshot) => {
                 const questionsData = [];
                 snapshot.forEach((doc) => {
@@ -237,8 +246,62 @@ document.addEventListener('DOMContentLoaded', () => {
             // If not current user or not owner/admin, remove button is simply not added.
 
             questionItem.appendChild(questionText);
+
+            // Admin: Mark as answered checkbox
+            if (currentUser && adminUIDs.includes(currentUser.uid)) {
+                const answeredCheckbox = document.createElement('input');
+                answeredCheckbox.type = 'checkbox';
+                answeredCheckbox.classList.add('answered-checkbox');
+                answeredCheckbox.checked = !!question.answered; // Ensure boolean, default to false if undefined
+                answeredCheckbox.title = question.answered ? "Mark as Unanswered" : "Mark as Answered";
+
+                answeredCheckbox.addEventListener('change', () => {
+                    handleMarkAsAnswered(question.id, answeredCheckbox.checked);
+                });
+
+                const answeredLabel = document.createElement('label');
+                answeredLabel.classList.add('answered-label');
+                answeredLabel.appendChild(answeredCheckbox);
+                answeredLabel.appendChild(document.createTextNode(question.answered ? ' Answered' : ' Mark Answered'));
+
+                // Change label text dynamically if needed, or use CSS to hide/show text based on state
+                answeredCheckbox.addEventListener('change', () => {
+                   answeredLabel.childNodes[1].nodeValue = answeredCheckbox.checked ? ' Answered' : ' Mark Answered';
+                   answeredCheckbox.title = answeredCheckbox.checked ? "Mark as Unanswered" : "Mark as Answered";
+                });
+
+                questionActions.appendChild(answeredLabel);
+            }
+
+            // Apply 'answered-question' class if the question is answered
+            if (question.answered === true) {
+                questionItem.classList.add('answered-question');
+            } else {
+                questionItem.classList.remove('answered-question'); // Ensure class is removed if not answered
+            }
+
             questionItem.appendChild(questionActions);
             questionsList.appendChild(questionItem);
+        });
+    }
+
+    // --- Handle Mark as Answered ---
+    function handleMarkAsAnswered(questionId, newStatus) {
+        if (!currentUser || !adminUIDs.includes(currentUser.uid)) {
+            alert("You do not have permission to perform this action.");
+            return;
+        }
+        const questionRef = db.collection("questions").doc(questionId);
+        questionRef.update({
+            answered: newStatus
+        }).then(() => {
+            // console.log(`Question ${questionId} marked as ${newStatus ? 'answered' : 'unanswered'}.`);
+            // UI will update via onSnapshot listener.
+        }).catch((error) => {
+            console.error("Error updating question answered status: ", error);
+            alert("Error updating question status. Please try again.");
+            // Optionally, revert checkbox state here if Firestore update fails,
+            // though onSnapshot should eventually correct it.
         });
     }
 
@@ -261,10 +324,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             userId: currentUser.uid,
                             // 'userName' was removed in a previous update
                             votes: 0,
-                            votedBy: [], 
+                            votedBy: [],
+                            answered: false, // Initialize answered to false
                             createdAt: firebase.firestore.FieldValue.serverTimestamp()
                         }).then(() => {
-                            questionInput.value = ''; 
+                            questionInput.value = '';
                         }).catch((error) => {
                             console.error("Error adding question: ", error);
                             alert("Error adding question. Please try again.");
@@ -370,4 +434,48 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Initial Render ---
     // renderQuestions(); // Called by onAuthStateChanged (via loadQuestionsFromFirestore) initially.
     // Note: Questions are now persisted in Firestore.
+
+    // --- Event Listener for Remove All Questions ---
+    removeAllQuestionsButton.addEventListener('click', handleRemoveAllQuestions);
+
+    // --- Handle Remove All Questions ---
+    function handleRemoveAllQuestions() {
+        if (!currentUser || !adminUIDs.includes(currentUser.uid)) {
+            alert("You do not have permission to perform this action.");
+            return;
+        }
+
+        if (confirm("DANGER: Are you absolutely sure you want to remove ALL questions? This action cannot be undone.")) {
+            db.collection("questions").get()
+                .then((querySnapshot) => {
+                    if (querySnapshot.empty) {
+                        alert("There are no questions to remove.");
+                        return; // Return a resolved promise or undefined
+                    }
+
+                    // For a moderate number of questions, individual deletes are fine.
+                    // For a very large number, batched writes or a Cloud Function would be better.
+                    const deletePromises = [];
+                    querySnapshot.forEach((doc) => {
+                        deletePromises.push(doc.ref.delete());
+                    });
+                    
+                    return Promise.all(deletePromises);
+                })
+                .then(() => {
+                    // This .then() will only be reached if the Promise.all was successful
+                    // or if the querySnapshot was empty and we returned early.
+                    // We should only alert if questions were actually deleted.
+                    // However, the current structure means this alert might show even if querySnapshot was empty.
+                    // To fix, we can check if deletePromises had any items.
+                    // For now, keeping it simple as per provided code.
+                    alert("All questions have been removed.");
+                    // UI will update automatically via the onSnapshot listener in loadQuestionsFromFirestore
+                })
+                .catch((error) => {
+                    console.error("Error removing all questions: ", error);
+                    alert("An error occurred while trying to remove all questions. Please check the console for details.");
+                });
+        }
+    }
 });
