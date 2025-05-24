@@ -25,6 +25,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const userInfoDiv = document.getElementById('user-info');
     const userDetailsP = document.getElementById('user-details');
 
+    const githubSignInButton = document.getElementById('github-signin-button'); 
+    const facebookSignInButton = document.getElementById('facebook-signin-button'); 
+    // References for Microsoft, X, and Apple buttons removed.
+
     let questions = []; // Array to store question objects { id: 'uuid', text: '...', votes: 0, userId?: '...', userName?: '...' }
     let userVotes = {}; // Object to track user votes { questionId: true/false }
 
@@ -38,21 +42,35 @@ document.addEventListener('DOMContentLoaded', () => {
             userDetailsP.textContent = `Logged in as: ${user.displayName || user.email}`;
             userInfoDiv.style.display = 'block';
             googleSignInButton.style.display = 'none';
+            githubSignInButton.style.display = 'none'; 
+            facebookSignInButton.style.display = 'none'; 
+            // Display logic for Microsoft, X, and Apple buttons removed.
             signOutButton.style.display = 'block';
 
             questionInput.disabled = false;
             addQuestionButton.disabled = false;
+            questionsList.style.display = ''; // Or 'block', 'flex' etc. depending on CSS
+            renderQuestions(); // Render questions now that user is logged in
         } else {
             // User is signed out
             userDetailsP.textContent = '';
             userInfoDiv.style.display = 'none';
             googleSignInButton.style.display = 'block';
+            githubSignInButton.style.display = 'block'; 
+            facebookSignInButton.style.display = 'block'; 
+            // Display logic for Microsoft, X, and Apple buttons removed.
             signOutButton.style.display = 'none';
 
             questionInput.disabled = true;
             addQuestionButton.disabled = true;
+            questionsList.innerHTML = ''; // Clear questions from display
+            questionsList.style.display = 'none'; // Hide the list container
+            // It's also good practice to clear the actual 'questions' array 
+            // if questions should not persist in memory after logout.
+            // For now, just hiding and clearing display is requested.
+            // questions = []; // Uncomment if questions should be wiped from memory on logout
         }
-        renderQuestions(); // Re-render questions to update UI based on auth state (e.g., remove buttons)
+        // renderQuestions() was here, moved into the if(user) block
     });
 
     // --- Sign-In with Google ---
@@ -86,6 +104,51 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // --- Sign-In with GitHub ---
+    githubSignInButton.addEventListener('click', () => {
+        const provider = new firebase.auth.GithubAuthProvider();
+        // You can add custom scopes if needed:
+        // provider.addScope('repo'); // Example scope
+        auth.signInWithPopup(provider)
+            .then((result) => {
+                // const user = result.user;
+                // console.log('Signed in with GitHub:', user);
+            })
+            .catch((error) => {
+                console.error("GitHub Sign-In Error:", error.code, error.message);
+                 if (error.code === 'auth/account-exists-with-different-credential') {
+                    alert('An account already exists with the same email address but different sign-in credentials. Try signing in using a method you used previously.');
+                } else if (error.code === 'auth/cancelled-popup-request' || error.code === 'auth/popup-closed-by-user') {
+                    // User closed the popup
+                } else {
+                    alert(`Error signing in with GitHub: ${error.message}`);
+                }
+            });
+    });
+
+    // --- Sign-In with Facebook ---
+    facebookSignInButton.addEventListener('click', () => {
+        const provider = new firebase.auth.FacebookAuthProvider();
+        // You can add scopes if needed, e.g., provider.addScope('email');
+        auth.signInWithPopup(provider)
+            .then((result) => {
+                // const user = result.user;
+                // console.log('Signed in with Facebook:', user);
+            })
+            .catch((error) => {
+                console.error("Facebook Sign-In Error:", error.code, error.message);
+                if (error.code === 'auth/account-exists-with-different-credential') {
+                    alert('An account already exists with the same email address but different sign-in credentials. Try signing in using a method you used previously.');
+                } else if (error.code === 'auth/cancelled-popup-request' || error.code === 'auth/popup-closed-by-user') {
+                    // User closed the popup - typically not an error to show them
+                } else {
+                    alert(`Error signing in with Facebook: ${error.message}`);
+                }
+            });
+    });
+
+    // Event listener for Apple sign-in button removed.
+
     // --- Render Questions ---
     function renderQuestions() {
         questionsList.innerHTML = ''; // Clear existing questions
@@ -98,13 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const questionText = document.createElement('p');
             questionText.classList.add('question-text');
             questionText.textContent = question.text;
-            if (question.userName) {
-                const authorSpan = document.createElement('span');
-                authorSpan.style.fontSize = '0.8em';
-                authorSpan.style.color = '#555';
-                authorSpan.textContent = ` (by ${question.userName})`;
-                questionText.appendChild(authorSpan);
-            }
+            // Author name display removed as per requirement
 
 
             const questionActions = document.createElement('div');
