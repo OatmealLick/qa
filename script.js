@@ -249,31 +249,35 @@ document.addEventListener('DOMContentLoaded', () => {
         event.preventDefault();
         const text = questionInput.value.trim();
         if (text && currentUser) { // Only allow adding if logged in
-            // const newQuestion = { // Old local object creation
-            //     id: crypto.randomUUID(),
-            //     text: text,
-            //     votes: 0,
-            //     userId: currentUser.uid,
-            //     userName: currentUser.displayName || currentUser.email
-            // };
-            // questions.push(newQuestion); // REMOVE THIS
+            
+            // Check question count before adding
+            db.collection("questions").where("userId", "==", currentUser.uid).get()
+                .then((querySnapshot) => {
+                    const questionCount = querySnapshot.size;
+                    if (questionCount >= 20) {
+                        alert("You have reached the limit of 20 questions per user.");
+                    } else {
+                        // Proceed to add the question to Firestore
+                        db.collection("questions").add({
+                            text: text,
+                            userId: currentUser.uid,
+                            // 'userName' was removed in a previous update
+                            votes: 0,
+                            votedBy: [], 
+                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                        }).then(() => {
+                            questionInput.value = ''; 
+                        }).catch((error) => {
+                            console.error("Error adding question: ", error);
+                            alert("Error adding question. Please try again.");
+                        });
+                    }
+                })
+                .catch((error) => {
+                    console.error("Error checking question count: ", error);
+                    alert("Could not check your question count. Please try again.");
+                });
 
-            db.collection("questions").add({
-                text: text,
-                userId: currentUser.uid,
-                // userName: currentUser.displayName || currentUser.email, // REMOVED
-                votes: 0,
-                votedBy: [], // ADDED
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            }).then(() => {
-                questionInput.value = ''; // Clear input
-                // No need to call renderQuestions() here, onSnapshot will handle it
-            }).catch((error) => {
-                console.error("Error adding question: ", error);
-                alert("Error adding question. Please try again.");
-            });
-            // questionInput.value = ''; // Old position, moved into .then()
-            // renderQuestions(); // Old call, removed
         } else if (!currentUser) {
             alert("Please sign in to add a question.");
         }
