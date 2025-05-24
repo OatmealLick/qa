@@ -1,13 +1,12 @@
 document.addEventListener('DOMContentLoaded', () => {
     // --- Firebase Configuration ---
-    // IMPORTANT: Replace with your app's Firebase project configuration object!
     const firebaseConfig = {
-        apiKey: "YOUR_API_KEY",
-        authDomain: "YOUR_AUTH_DOMAIN",
-        projectId: "YOUR_PROJECT_ID",
-        storageBucket: "YOUR_STORAGE_BUCKET",
-        messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-        appId: "YOUR_APP_ID"
+	apiKey: "AIzaSyBAmQahXdsEf1l6V-GWHpDwp3AoaoRcIjQ",
+	authDomain: "wookash-qa.firebaseapp.com",
+	projectId: "wookash-qa",
+	storageBucket: "wookash-qa.firebasestorage.app",
+	messagingSenderId: "580430017957",
+	appId: "1:580430017957:web:1f2de24a8739ee7cb4a44c"
     };
 
     // --- Initialize Firebase ---
