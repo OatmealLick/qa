@@ -332,27 +332,32 @@ document.addEventListener('DOMContentLoaded', () => {
         // Optional: Add a confirmation dialog before deleting
         // if (confirm("Are you sure you want to remove this question?")) {
             questionRef.get().then((doc) => {
-                if (doc.exists && currentUser && doc.data().userId === currentUser.uid) {
-                    questionRef.delete()
-                        .then(() => {
-                            // console.log("Question removed");
-                            // No need to call renderQuestions(), onSnapshot will handle it
-                            // delete userVotes[questionId]; // REMOVED - No longer using local userVotes
-                        })
-                        .catch((error) => {
-                            console.error("Error removing question: ", error);
-                            alert("Error removing question.");
-                        });
-                } else if (doc.exists && currentUser && doc.data().userId !== currentUser.uid) {
-                    // This case should ideally be prevented by security rules & UI
-                    alert("You can only remove your own questions.");
+                if (doc.exists && currentUser) {
+                    const isOwner = doc.data().userId === currentUser.uid;
+                    const isAdminUser = adminUIDs.includes(currentUser.uid);
+
+                    if (isOwner || isAdminUser) {
+                        // Now, if the user is owner OR admin, proceed to delete
+                        questionRef.delete()
+                            .then(() => {
+                                // console.log("Question removed by owner or admin");
+                                // No need to call renderQuestions(), onSnapshot will handle it
+                            })
+                            .catch((error) => {
+                                console.error("Error removing question: ", error);
+                                alert("Error removing question. Firestore security rules might have prevented it if not owner/admin.");
+                            });
+                    } else { 
+                        // User is logged in but not owner and not admin
+                        alert("You do not have permission to remove this question.");
+                    }
                 } else if (!doc.exists) {
-                    alert("This question no longer exists.");
-                } else { // Not signed in
-                    alert("You must be signed in to remove questions.");
+                    alert("Cannot remove: Question does not exist.");
+                } else { // User not logged in (though button shouldn't be visible due to renderQuestions logic)
+                    alert("Cannot remove: You are not signed in.");
                 }
             }).catch(error => {
-                console.error("Error fetching question for deletion: ", error);
+                console.error("Error fetching question for deletion check: ", error);
                 alert("Could not verify question ownership for deletion.");
             });
         // }
