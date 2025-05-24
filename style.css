@@ -23,8 +23,13 @@ body {
 
 h1 {
     text-align: center;
-    color: #FFFFFF; /* Bright white for main heading */
-    margin-bottom: 25px;
+    color: #FFFFFF; /* Current color, ensure it's still appropriate */
+    margin-bottom: 25px; /* Current margin, adjust if needed */
+    font-family: 'Oswald', sans-serif; /* New font */
+    font-weight: 700; /* Use bold weight for Oswald */
+    font-size: 2.8em; /* Example: adjust as needed */
+    letter-spacing: 1px; /* Example: adjust as needed */
+    text-transform: uppercase; /* Often looks good with Oswald for titles */
 }
 
 /* Form Styles */
@@ -121,6 +126,23 @@ h1 {
 }
 #signout-button:hover {
     background-color: #5a5a5a;
+}
+
+#remove-all-questions-button {
+    background-color: #B71C1C; /* A deep, somewhat muted red for destructive action */
+    color: #FFFFFF; /* White text for contrast */
+    /* It will inherit general button styles like padding, border-radius: 0, font-weight, etc. */
+    /* Add any specific overrides if needed: */
+    width: 280px; /* Match other auth container buttons width */
+    max-width: 100%;
+    margin-top: 10px; /* Space from user details or signout button */
+    text-transform: uppercase; /* Consistent with other action buttons */
+}
+
+#remove-all-questions-button:hover {
+    background-color: #a01818; /* Darker red on hover */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3); /* Inherited, but ensure it's what you want */
+    transform: translateY(-1px); /* Inherited */
 }
 
 

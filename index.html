@@ -4,11 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Q&A App</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
-        <h1>Q&A</h1>
+        <h1>WOOKASH PODCAST</h1>
 
         <div id="auth-container">
             <button id="google-signin-button">Sign in with Google</button>
@@ -16,8 +19,10 @@
             <button id="facebook-signin-button">Sign in with Facebook</button>
             <div id="user-info" style="display: none;">
                 <p id="user-details"></p>
-                <button id="signout-button">Sign out</button>
+                <!-- Signout button will be moved out of user-info -->
             </div>
+            <button id="remove-all-questions-button" style="display: none;">Remove All Questions</button>
+            <button id="signout-button">Sign out</button> 
         </div>
 
         <form id="add-question-form">
