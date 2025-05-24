@@ -36,9 +36,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let currentUser = null; // To store the current authenticated user object
 
-    // Client-side list of admin UIDs (for UI purposes only, rules enforce actual deletion)
-    // IMPORTANT: Replace with the same UIDs used in your Firestore Security Rules
-    const adminUIDs = ["ADMIN_UID_1_PLACEHOLDER", "ADMIN_UID_2_PLACEHOLDER"]; 
+    // Client-side list of admin UIDs (for UI purposes only, rules enforce actual deletion, you can try 'hacking it' dear reader :) )
+    const adminUIDs = ["p9C3Ld9rHuPfe2synovUe3N1K4h1", "LGA38I8WjgOLgzN2nKlW0KtGUUo2"];
 
     // --- Auth State Observer ---
     auth.onAuthStateChanged(user => {
