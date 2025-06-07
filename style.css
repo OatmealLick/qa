@@ -214,3 +214,43 @@ h1 {
     color: #aaaaaa; /* Lighter gray for this message */
     margin-right: 10px; /* Space before remove button if it's there */
 }
+
+/* Styling for Answered Questions */
+.answered-question {
+    opacity: 0.65; /* Reduce opacity to make it look "turned off" */
+    background-color: #3a3a3a; /* Darker, more desaturated background */
+    border-left-color: #666666; /* Gray border to make it less prominent */
+    /* box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15); /* Optionally reduce shadow */
+}
+
+/* Ensure admin controls within an answered question remain fully visible and interactive */
+.answered-question .question-actions .answered-label,
+.answered-question .question-actions .answered-checkbox {
+    opacity: 1; /* Counteract parent's opacity */
+}
+
+/* Optional: Adjust hover effect for answered questions if needed */
+/* For example, if there was a general .question-item:hover effect, you might do:
+.answered-question:hover {
+    background-color: #3f3f3f; // Slightly less pronounced hover
+}
+*/
+
+/* Styling for the admin's "Mark Answered" checkbox and label */
+.answered-label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-size: 0.9em;
+    color: #E0E0E0; /* Light text color */
+    margin-left: 10px; /* Space from other buttons */
+}
+
+.answered-checkbox {
+    margin-right: 5px;
+    /* Default browser checkbox styles will apply.
+       Custom styling checkboxes can be complex and might be out of scope
+       unless specifically requested. */
+    /* Make checkbox slightly larger if desired, but can be tricky cross-browser */
+    /* transform: scale(1.2); */
+}

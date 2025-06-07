@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentUser = null; // To store the current authenticated user object
 
     // Client-side list of admin UIDs (for UI purposes only, rules enforce actual deletion, you can try 'hacking it' dear reader :) )
-    const adminUIDs = ["p9C3Ld9rHuPfe2synovUe3N1K4h1", "LGA38I8WjgOLgzN2nKlW0KtGUUo2"];
+    const adminUIDs = ["p9C3Ld9rHuPfe2synovUe3N1K4h1", "LGA38I8WjgOLgzN2nKlW0KtGUUo2", "WHj6mkqbiONyGuPvxqAm1K1UzOo1"];
 
     // --- Auth State Observer ---
     auth.onAuthStateChanged(user => {
@@ -246,8 +246,62 @@ document.addEventListener('DOMContentLoaded', () => {
             // If not current user or not owner/admin, remove button is simply not added.
 
             questionItem.appendChild(questionText);
+
+            // Admin: Mark as answered checkbox
+            if (currentUser && adminUIDs.includes(currentUser.uid)) {
+                const answeredCheckbox = document.createElement('input');
+                answeredCheckbox.type = 'checkbox';
+                answeredCheckbox.classList.add('answered-checkbox');
+                answeredCheckbox.checked = !!question.answered; // Ensure boolean, default to false if undefined
+                answeredCheckbox.title = question.answered ? "Mark as Unanswered" : "Mark as Answered";
+
+                answeredCheckbox.addEventListener('change', () => {
+                    handleMarkAsAnswered(question.id, answeredCheckbox.checked);
+                });
+
+                const answeredLabel = document.createElement('label');
+                answeredLabel.classList.add('answered-label');
+                answeredLabel.appendChild(answeredCheckbox);
+                answeredLabel.appendChild(document.createTextNode(question.answered ? ' Answered' : ' Mark Answered'));
+
+                // Change label text dynamically if needed, or use CSS to hide/show text based on state
+                answeredCheckbox.addEventListener('change', () => {
+                   answeredLabel.childNodes[1].nodeValue = answeredCheckbox.checked ? ' Answered' : ' Mark Answered';
+                   answeredCheckbox.title = answeredCheckbox.checked ? "Mark as Unanswered" : "Mark as Answered";
+                });
+
+                questionActions.appendChild(answeredLabel);
+            }
+
+            // Apply 'answered-question' class if the question is answered
+            if (question.answered === true) {
+                questionItem.classList.add('answered-question');
+            } else {
+                questionItem.classList.remove('answered-question'); // Ensure class is removed if not answered
+            }
+
             questionItem.appendChild(questionActions);
             questionsList.appendChild(questionItem);
+        });
+    }
+
+    // --- Handle Mark as Answered ---
+    function handleMarkAsAnswered(questionId, newStatus) {
+        if (!currentUser || !adminUIDs.includes(currentUser.uid)) {
+            alert("You do not have permission to perform this action.");
+            return;
+        }
+        const questionRef = db.collection("questions").doc(questionId);
+        questionRef.update({
+            answered: newStatus
+        }).then(() => {
+            // console.log(`Question ${questionId} marked as ${newStatus ? 'answered' : 'unanswered'}.`);
+            // UI will update via onSnapshot listener.
+        }).catch((error) => {
+            console.error("Error updating question answered status: ", error);
+            alert("Error updating question status. Please try again.");
+            // Optionally, revert checkbox state here if Firestore update fails,
+            // though onSnapshot should eventually correct it.
         });
     }
 
@@ -270,10 +324,11 @@ document.addEventListener('DOMContentLoaded', () => {
                             userId: currentUser.uid,
                             // 'userName' was removed in a previous update
                             votes: 0,
-                            votedBy: [], 
+                            votedBy: [],
+                            answered: false, // Initialize answered to false
                             createdAt: firebase.firestore.FieldValue.serverTimestamp()
                         }).then(() => {
-                            questionInput.value = ''; 
+                            questionInput.value = '';
                         }).catch((error) => {
                             console.error("Error adding question: ", error);
                             alert("Error adding question. Please try again.");

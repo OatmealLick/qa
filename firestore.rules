@@ -1,0 +1,78 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // --- Admin List (Hardcoded) ---
+    function getAdminUIDs() {
+      return [
+        "p9C3Ld9rHuPfe2synovUe3N1K4h1", // woo
+        "LGA38I8WjgOLgzN2nKlW0KtGUUo2", // sci
+        "WHj6mkqbiONyGuPvxqAm1K1UzOo1"  // fls
+      ];
+    }
+
+    function isAdmin() {
+      return request.auth != null && request.auth.uid in getAdminUIDs();
+    }
+
+    // Questions collection
+    match /questions/{questionId} {
+      allow read: if true;
+
+      allow create: if request.auth != null &&
+                      request.resource.data.userId == request.auth.uid &&
+                      request.resource.data.text is string &&
+                      request.resource.data.votes == 0 &&
+                      request.resource.data.votedBy is list &&
+                      request.resource.data.votedBy.size() == 0 &&
+                      request.resource.data.createdAt == request.time &&
+                      request.resource.data.answered == false && // Initialize answered to false
+                      request.resource.data.answered is bool &&   // Ensure answered is a boolean
+                      !('userName' in request.resource.data);
+
+      allow update: if request.auth != null &&
+                      (
+                        // Scenario 1: Admin marks question as answered/unanswered
+                        (
+                          isAdmin() &&
+                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answered']) &&
+                          request.resource.data.answered is bool &&
+                          // Ensure other fields remain unchanged
+                          request.resource.data.text == resource.data.text &&
+                          request.resource.data.userId == resource.data.userId &&
+                          request.resource.data.createdAt == resource.data.createdAt &&
+                          request.resource.data.votes == resource.data.votes &&
+                          request.resource.data.votedBy == resource.data.votedBy
+                        ) ||
+                        // Scenario 2: User votes on a question (existing logic)
+                        (
+                          // Ensure only 'votes' and 'votedBy' can be changed by non-admins for voting
+                          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['votes', 'votedBy']) &&
+                          // Ensure 'answered' field is not changed during voting
+                          request.resource.data.answered == resource.data.answered &&
+                          // Ensure other critical fields remain unchanged
+                          request.resource.data.text == resource.data.text &&
+                          request.resource.data.userId == resource.data.userId &&
+                          request.resource.data.createdAt == resource.data.createdAt &&
+                          (
+                            // Sub-Scenario 2.1: Voting (adding a vote)
+                            (
+                              !(request.auth.uid in resource.data.votedBy) && // User was NOT in old list
+                              request.resource.data.votedBy == resource.data.votedBy.concat([request.auth.uid]) &&
+                              request.resource.data.votes == resource.data.votes + 1
+                            ) ||
+                            // Sub-Scenario 2.2: Unvoting (removing a vote)
+                            (
+                              request.auth.uid in resource.data.votedBy && // User WAS in old list
+                              request.resource.data.votedBy.size() == resource.data.votedBy.size() - 1 &&
+                              request.resource.data.votedBy.hasAll( resource.data.votedBy.removeAll([request.auth.uid]) ) &&
+                              request.resource.data.votes == resource.data.votes - 1
+                            )
+                          )
+                        )
+                      );
+
+      allow delete: if request.auth != null &&
+                      (resource.data.userId == request.auth.uid || isAdmin());
+    }
+  }
+}
