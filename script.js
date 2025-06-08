@@ -210,6 +210,13 @@ document.addEventListener('DOMContentLoaded', () => {
             questionText.classList.add('question-text');
             // Make sure question.text exists, especially if there are DB schema inconsistencies
             questionText.textContent = question.text || "[No question text]"; 
+
+            if (question.answered === true) {
+                const answeredIndicator = document.createElement('span');
+                answeredIndicator.textContent = " (Answered)";
+                answeredIndicator.classList.add('answered-text-indicator');
+                questionText.appendChild(answeredIndicator);
+            }
             // Author name display removed as per requirement
 
 

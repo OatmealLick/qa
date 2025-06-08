@@ -166,6 +166,14 @@ h1 {
     color: #FFFFFF; /* Brighter white for question text */
 }
 
+.answered-text-indicator {
+    font-size: 0.85em; /* Slightly larger than 0.8 for better readability */
+    color: #B0B0B0;   /* A lighter gray than #A0A0A0 for better visibility on #424242 bg */
+    font-style: italic;
+    font-weight: normal; /* Ensure it's not bold if .question-text is */
+    /* margin-left is not strictly needed due to space in textContent " (Answered)" */
+}
+
 .question-actions {
     display: flex;
     align-items: center;
