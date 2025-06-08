@@ -34,6 +34,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // let questions = []; // Local questions array removed, Firestore is the source of truth.
     // let userVotes = {}; // REMOVED - Replaced by votedBy array in Firestore documents.
     let questionsListener = null; // To hold the Firestore listener unsubscribe function
+    let commentListeners = {}; // To hold Firestore listeners for comments, keyed by questionId
+
 
     let currentUser = null; // To store the current authenticated user object
 
@@ -195,6 +197,10 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderQuestions(questionsData) { // Modified to accept questionsData
         questionsList.innerHTML = ''; // Clear existing questions
 
+        // Clean up all existing comment listeners before re-rendering questions
+        Object.values(commentListeners).forEach(unsubscribe => unsubscribe());
+        commentListeners = {};
+
         questionsData.forEach(question => { // Operates on questionsData
             const questionItem = document.createElement('div');
             questionItem.classList.add('question-item');
@@ -281,9 +287,132 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             questionItem.appendChild(questionActions);
+
+            // --- Comments Section ---
+            const commentsSection = document.createElement('div');
+            commentsSection.classList.add('comments-section');
+
+            const commentsHeader = document.createElement('h4'); // Or h3
+            commentsHeader.textContent = 'Comments:';
+            commentsSection.appendChild(commentsHeader);
+
+            const commentsList = document.createElement('div'); // To hold the list of comments
+            commentsSection.appendChild(commentsList);
+
+            // Detach existing listener for this question's comments if it exists
+            if (commentListeners[question.id]) {
+                commentListeners[question.id]();
+            }
+
+            // Listen for comments on this question
+            commentListeners[question.id] = db.collection("questions").doc(question.id).collection("comments")
+                .orderBy("createdAt")
+                .onSnapshot(snapshot => {
+                    commentsList.innerHTML = ''; // Clear previous comments for this question
+                    snapshot.forEach(doc => {
+                        const comment = { id: doc.id, ...doc.data() };
+                        const commentDiv = document.createElement('div');
+                        commentDiv.classList.add('comment-item');
+
+                        const commentText = document.createElement('span');
+                        commentText.textContent = comment.text;
+                        commentDiv.appendChild(commentText);
+
+                        if (comment.createdAt && comment.createdAt.toDate) {
+                            const commentTimestamp = document.createElement('span');
+                            commentTimestamp.classList.add('comment-timestamp');
+                            commentTimestamp.textContent = ` - ${comment.createdAt.toDate().toLocaleString()}`;
+                            commentDiv.appendChild(commentTimestamp);
+                        }
+
+                        if (currentUser && adminUIDs.includes(currentUser.uid)) {
+                            const deleteButton = document.createElement('button');
+                            deleteButton.textContent = 'Delete';
+                            deleteButton.classList.add('delete-comment-button');
+                            deleteButton.style.marginLeft = '10px'; // Basic styling
+                            deleteButton.addEventListener('click', () => handleDeleteComment(question.id, comment.id));
+                            commentDiv.appendChild(deleteButton);
+                        }
+                        commentsList.appendChild(commentDiv);
+                    });
+                }, error => {
+                    console.error(`Error fetching comments for question ${question.id}:`, error);
+                    commentsList.innerHTML = '<p>Error loading comments.</p>';
+                });
+
+            // Add Comment Form (for admins)
+            if (currentUser && adminUIDs.includes(currentUser.uid)) {
+                const addCommentForm = document.createElement('form');
+                addCommentForm.classList.add('add-comment-form');
+
+                const commentInput = document.createElement('input');
+                commentInput.type = 'text';
+                commentInput.classList.add('comment-input');
+                commentInput.placeholder = 'Add a comment...';
+
+                const addCommentButton = document.createElement('button');
+                addCommentButton.type = 'submit';
+                addCommentButton.textContent = 'Add Comment';
+
+                addCommentForm.appendChild(commentInput);
+                addCommentForm.appendChild(addCommentButton);
+
+                addCommentForm.addEventListener('submit', (e) => {
+                    // Pass question.id and the input element itself
+                    handleAddComment(e, question.id, commentInput);
+                });
+                commentsSection.appendChild(addCommentForm);
+            }
+
+            questionItem.appendChild(commentsSection);
             questionsList.appendChild(questionItem);
         });
     }
+
+    // --- Handle Add Comment ---
+    function handleAddComment(event, questionId, commentInputElement) {
+        event.preventDefault();
+        if (!currentUser || !adminUIDs.includes(currentUser.uid)) {
+            alert("You do not have permission to add comments.");
+            return;
+        }
+        const commentText = commentInputElement.value.trim();
+        if (commentText === "") {
+            alert("Comment cannot be empty.");
+            return;
+        }
+
+        db.collection("questions").doc(questionId).collection("comments").add({
+            text: commentText,
+            userId: currentUser.uid,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        }).then(() => {
+            commentInputElement.value = ''; // Clear input field
+            // Comments will be re-rendered by the onSnapshot listener
+        }).catch(error => {
+            console.error("Error adding comment: ", error);
+            alert("Error adding comment. Please try again.");
+        });
+    }
+
+    // --- Handle Delete Comment ---
+    function handleDeleteComment(questionId, commentId) {
+        if (!currentUser || !adminUIDs.includes(currentUser.uid)) {
+            alert("You do not have permission to delete comments.");
+            return;
+        }
+        if (confirm("Are you sure you want to delete this comment?")) {
+            db.collection("questions").doc(questionId).collection("comments").doc(commentId).delete()
+                .then(() => {
+                    // Comment will be removed from UI by the onSnapshot listener
+                })
+                .catch(error => {
+                    console.error("Error deleting comment: ", error);
+                    alert("Error deleting comment. Please try again.");
+                });
+        }
+    }
+
 
     // --- Handle Mark as Answered ---
     function handleMarkAsAnswered(questionId, newStatus) {
