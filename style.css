@@ -254,3 +254,108 @@ h1 {
     /* Make checkbox slightly larger if desired, but can be tricky cross-browser */
     /* transform: scale(1.2); */
 }
+
+/* --- Comments Section Styling --- */
+.comments-section {
+    margin-top: 20px; /* Increased from 15px for more separation */
+    padding: 15px;    /* Increased from 10px */
+    background-color: #383838;
+    border-top: 1px solid #555555;
+    border-radius: 0; /* Consistent with theme */
+}
+
+.comments-section h4 { /* Targeting h4 as used in script.js */
+    font-size: 1.1em;
+    margin-top: 0; /* Remove default h4 margin-top */
+    margin-bottom: 15px; /* Increased from 10px */
+    color: #E0E0E0;
+    font-weight: bold; /* Make it stand out a bit */
+}
+
+/* Individual Comment Item Styling */
+.comment-item {
+    padding: 10px; /* Increased from 8px */
+    margin-bottom: 10px; /* Increased from 8px */
+    background-color: #444444;
+    border-radius: 0; /* Consistent with theme */
+    border: 1px solid #505050;
+    font-size: 0.95em; /* Slightly larger for readability */
+}
+
+.comment-item span.comment-text { /* More specific selector */
+    color: #D0D0D0;
+    display: block; /* Ensure it takes its own line if meta is below */
+}
+
+.comment-item span.comment-timestamp { /* More specific selector based on script.js */
+    font-size: 0.8em;
+    color: #AAAAAA;
+    margin-top: 5px; /* Increased from 4px */
+    display: block; /* Display timestamp on a new line or below text */
+}
+
+/* Add Comment Form Styling */
+.add-comment-form {
+    display: flex;
+    margin-top: 15px; /* Space above the form */
+}
+
+.comment-input {
+    flex-grow: 1;
+    padding: 10px; /* Slightly less than question-input */
+    background-color: #424242;
+    color: #E0E0E0;
+    border: 1px solid #555555;
+    border-radius: 0;
+    margin-right: 10px;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.comment-input:focus {
+    outline: none;
+    border-color: #F1D82D; /* Accent color border on focus */
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.2), 0 0 0 2px rgba(241, 216, 45, 0.3); /* Focus ring */
+}
+
+/* "Add Comment" button styling - inherits general button styles first */
+.add-comment-form button {
+    /* General button styles are inherited: padding, border, cursor, font-weight etc. */
+    /* Specific overrides for Add Comment button */
+    background-color: #F1D82D; /* Accent Yellow */
+    color: #2F2F2F; /* Dark text for contrast */
+    padding: 10px 15px; /* Adjust padding if needed */
+    text-transform: none; /* Normal case, or uppercase if preferred */
+    letter-spacing: normal; /* Reset if general buttons have it */
+}
+
+.add-comment-form button:hover {
+    background-color: #e0c820; /* Slightly darker yellow */
+    /* box-shadow and transform are inherited */
+}
+
+/* Comment Delete Button Styling */
+.delete-comment-button {
+    /* General button styles might be inherited, but we want it smaller */
+    padding: 4px 8px;
+    font-size: 0.8em;
+    background-color: #666666;
+    color: #E0E0E0;
+    border: none;
+    border-radius: 0; /* Consistent with theme */
+    cursor: pointer;
+    margin-left: 10px; /* Increased from 8px */
+    text-transform: none; /* Normal case */
+    font-weight: normal; /* Less emphasis */
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.delete-comment-button:hover {
+    background-color: #777777;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.delete-comment-button:active {
+    background-color: #555555;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
